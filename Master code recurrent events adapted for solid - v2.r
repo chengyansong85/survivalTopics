@@ -3,6 +3,7 @@
 
 require(mstate)
 require(diagram)
+require(msm)
 ##------------          
 
 # SOLID Example: Rates triple for first 30 days following MACE, double for remainder of year, then return back to 0.075
@@ -21,16 +22,16 @@ require(diagram)
 #---------- # LOCK  OPEN ---------------------------
 #--------- 3-piece exponential cdf
 
-F0      <- function(t, lambda1=-log(1-.15/365), lambda2=-log(1-.10/365), lambda3=-log(1-.20/365), t1=365, t2=2*365){
-        1 - (exp(-1*lambda1*t)*(t < t1) +
-             exp(-1*lambda1*t1)*exp(-1*lambda2*(t - t1))*(t >= t1 & t < t2) +
-             exp(-1*lambda1*t1)*exp(-1*lambda2*(t2 - t1))*exp(-lambda3*(t- t2))*(t >= t2))}
+#F0      <- function(t, lambda1=-log(1-.15/365), lambda2=-log(1-.10/365), lambda3=-log(1-.20/365), t1=365, t2=2*365){
+#        1 - (exp(-1*lambda1*t)*(t < t1) +
+#             exp(-1*lambda1*t1)*exp(-1*lambda2*(t - t1))*(t >= t1 & t < t2) +
+#             exp(-1*lambda1*t1)*exp(-1*lambda2*(t2 - t1))*exp(-lambda3*(t- t2))*(t >= t2))}
 
 #----------Inverse of 3-piece exponential cdf
-F0_inv  <- function(t, lambda1=-log(1-.15/365), lambda2=-log(1-.10/365), lambda3=-log(1-.20/365),  t1=365, t2=2*365){
-        log(1-t)              /-lambda1                         *(t <  F0(t1, lambda1=lambda1, lambda2=lambda2, lambda3=lambda3, t1=t1,t2=t2)) +
-      ((log(1-t) + lambda1*t1)/-lambda2 + t1)                   *(t >= F0(t1, lambda1=lambda1, lambda2=lambda2, lambda3=lambda3, t1=t1,t2=t2) & t < F0(t2, lambda1=lambda1, lambda2=lambda2, lambda3=lambda3, t1=t1,t2=t2)) +
-      ((log(1-t) + lambda1*t1 + lambda2*(t2-t1))/-lambda3 + t2) *(t >= F0(t2, lambda1=lambda1, lambda2=lambda2, lambda3=lambda3, t1=t1,t2=t2)) }
+#F0_inv  <- function(t, lambda1=-log(1-.15/365), lambda2=-log(1-.10/365), lambda3=-log(1-.20/365),  t1=365, t2=2*365){
+#        log(1-t)              /-lambda1                         *(t <  F0(t1, lambda1=lambda1, lambda2=lambda2, lambda3=lambda3, t1=t1,t2=t2)) +
+#      ((log(1-t) + lambda1*t1)/-lambda2 + t1)                   *(t >= F0(t1, lambda1=lambda1, lambda2=lambda2, lambda3=lambda3, t1=t1,t2=t2) & t < F0(t2, lambda1=lambda1, lambda2=lambda2, lambda3=lambda3, t1=t1,t2=t2)) +
+#      ((log(1-t) + lambda1*t1 + lambda2*(t2-t1))/-lambda3 + t2) *(t >= F0(t2, lambda1=lambda1, lambda2=lambda2, lambda3=lambda3, t1=t1,t2=t2)) }
 # LOCK CLOSE---------------------------
 
 get.event.hist <- function(
@@ -53,30 +54,30 @@ Z12.rate      <- -log(1-p.Z12)             # Drug has no effect on NON-CV Death
 Z1.rate       <- -log(1-p.Z1)*HR.adj       # Take HR.adj = 1 for PBO and .845 for SB
 Z2.rate       <- -log(1-p.Z2)*HR.adj       # Take HR.adj = 1 for PBO and .845 for SB
 
-
 #------------------ Transitions into Non-CV ACM Absorbing States------------#
-E1E7 <- round(F0_inv(runif(narm), lambda1=Z12.rate[1], lambda2=Z12.rate[2], lambda3=Z12.rate[3], t1 = tp1, t2 = tp2),5)
-E2E7 <- round(F0_inv(runif(narm), lambda1=Z12.rate[1], lambda2=Z12.rate[2], lambda3=Z12.rate[3], t1 = tp1, t2 = tp2),5)
-E3E7 <- round(F0_inv(runif(narm), lambda1=Z12.rate[1], lambda2=Z12.rate[2], lambda3=Z12.rate[3], t1 = tp1, t2 = tp2),5)
-E4E7 <- round(F0_inv(runif(narm), lambda1=Z12.rate[1], lambda2=Z12.rate[2], lambda3=Z12.rate[3], t1 = tp1, t2 = tp2),5)
-E5E7 <- round(F0_inv(runif(narm), lambda1=Z12.rate[1], lambda2=Z12.rate[2], lambda3=Z12.rate[3], t1 = tp1, t2 = tp2),5)
+E1E7 <- rpexp(n=narm, rate=Z12.rate, t=c(0, tp1, tp2))
+E2E7 <- rpexp(n=narm, rate=Z12.rate, t=c(0, tp1, tp2))
+E3E7 <- rpexp(n=narm, rate=Z12.rate, t=c(0, tp1, tp2))
+E4E7 <- rpexp(n=narm, rate=Z12.rate, t=c(0, tp1, tp2))
+E5E7 <- rpexp(n=narm, rate=Z12.rate, t=c(0, tp1, tp2))
+
 
 #------------------ Transitions into CVDeath Absorbing States------------#
 # Hardcoding E1E6 to install the Protocol assumptions on time to first FATAL MACE
-E1E6 <- round(F0_inv(runif(narm), lambda1= -log(1-.075*.2)*HR.adj,    lambda2=-log(1-.075*.2)*HR.adj,    lambda3=-log(1-.035*.2)*HR.adj,    t1 = tp1, t2 = tp2),5)
-E2E6 <- round(F0_inv(runif(narm), lambda1=Z2.rate[1], lambda2=Z2.rate[2], lambda3=Z2.rate[3], t1 = tp1, t2 = tp2),5)
-E3E6 <- round(F0_inv(runif(narm), lambda1=Z2.rate[1], lambda2=Z2.rate[2], lambda3=Z2.rate[3], t1 = tp1, t2 = tp2),5)
-E4E6 <- round(F0_inv(runif(narm), lambda1=Z2.rate[1], lambda2=Z2.rate[2], lambda3=Z2.rate[3], t1 = tp1, t2 = tp2),5)
-E5E6 <- round(F0_inv(runif(narm), lambda1=Z2.rate[1], lambda2=Z2.rate[2], lambda3=Z2.rate[3], t1 = tp1, t2 = tp2),5)
+E1E6 <- rpexp(n=narm, rate=c(-log(1-.075*.2), -log(1-.075*.2), -log(1-.035*.2))*HR.adj, t=c(0, tp1, tp2))
+E2E6 <- rpexp(n=narm, rate=Z2.rate, t=c(0, tp1, tp2))
+E3E6 <- rpexp(n=narm, rate=Z2.rate, t=c(0, tp1, tp2))
+E4E6 <- rpexp(n=narm, rate=Z2.rate, t=c(0, tp1, tp2))
+E5E6 <- rpexp(n=narm, rate=Z2.rate, t=c(0, tp1, tp2))
+
 
 #--------------Walk Through Transient States
 # Round 1: Non-Fatal Stroke/MI rate is the same regardless of transitional state.
 # Hardcoding E1E2 to install the Protocol assumptions on time to first NON-FATAL MACE
-E1E2 <- round(F0_inv(runif(narm), lambda1=-log(1-.075*.8)*HR.adj, lambda2=-log(1-.075*.8)*HR.adj, lambda3=-log(1-.075*.8)*HR.adj, t1 = tp1, t2 = tp2),5)
-E2E3 <- round(F0_inv(runif(narm), lambda1=Z1.rate[1], lambda2=Z1.rate[2], lambda3=Z1.rate[3], t1 = tp1, t2 = tp2),5)
-E3E4 <- round(F0_inv(runif(narm), lambda1=Z1.rate[1], lambda2=Z1.rate[2], lambda3=Z1.rate[3], t1 = tp1, t2 = tp2),5)
-E4E5 <- round(F0_inv(runif(narm), lambda1=Z1.rate[1], lambda2=Z1.rate[2], lambda3=Z1.rate[3], t1 = tp1, t2 = tp2),5)
-
+E1E2 <- rpexp(n=narm, rate=c(-log(1-.075*.8), -log(1-.075*.8), -log(1-.075*.8))*HR.adj, t=c(0, tp1, tp2))
+E2E3 <- rpexp(n=narm, rate=Z1.rate, t=c(0, tp1, tp2))
+E3E4 <- rpexp(n=narm, rate=Z1.rate, t=c(0, tp1, tp2))
+E4E5 <- rpexp(n=narm, rate=Z1.rate, t=c(0, tp1, tp2))
 # This just gives a quick check on transition times.
 #par(mfrow=c(3,5))
 #hist(E1E7, xlim=c(0,2000), ylim=c(0,.005),breaks=10, freq=F)
